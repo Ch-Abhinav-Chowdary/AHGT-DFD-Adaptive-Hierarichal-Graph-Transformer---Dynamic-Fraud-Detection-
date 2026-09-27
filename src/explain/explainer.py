@@ -197,17 +197,6 @@ class FraudExplainer:
             for idx in top_feat_indices
         ]
 
-        # Extract important edges by threshold
-        important_edges = []
-        for i, weight in enumerate(edge_mask):
-            if weight >= edge_threshold:
-                src_glob = int(global_subset[sub_edges[0, i]])
-                dst_glob = int(global_subset[sub_edges[1, i]])
-                important_edges.append({
-                    "src": src_glob,
-                    "dst": dst_glob,
-                    "weight": float(weight),
-                })
 
         # ── Percentile-based edge selection (top-30%) ─────────────────────
         # Fixed threshold (0.15) fails when all node importances are high:
