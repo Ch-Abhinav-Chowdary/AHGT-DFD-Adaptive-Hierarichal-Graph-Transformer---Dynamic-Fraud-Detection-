@@ -98,20 +98,18 @@ class FraudExplainer:
 
         # ── Instantiate PyG Explainer with GNNExplainer ────────────────────
         # explanation_type='model' explains the full output distribution.
-        # NOTE: We use 'model' (not 'phenomenon') because TransformerConv
-        # with beta=True uses residual attention gating that does not expose
-        # edge gradients in the standard message-passing form that PyG's
-        # phenomenon-mode gradient initialiser requires — doing so raises:
-        #   "Could not compute gradients for edges."
-        # The Fidelity+ improvement comes instead from:
-        #   (a) 200-epoch mask convergence (was 60), and
-        #   (b) the median-percentile masking logic below.
+        # edge_mask_type=None: TransformerConv with beta=True uses residual
+        # attention gating that does not route gradients through edge_mask in
+        # the standard MessagePassing form that PyG's gradient initialiser
+        # requires. Setting edge_mask_type=None disables that code path.
+        # Edge importance is instead derived analytically from node_mask
+        # (product of endpoint importances) inside explain_node — see below.
         self.explainer = Explainer(
             model=self.model,
             algorithm=GNNExplainer(epochs=epochs),
             explanation_type="model",
             node_mask_type="attributes",
-            edge_mask_type="object",
+            edge_mask_type=None,          # gradient-based edge init unsupported
             model_config=dict(
                 mode="multiclass_classification",
                 task_level="node",
@@ -162,16 +160,32 @@ class FraudExplainer:
             risk_score = probs[1].item()
             predicted_class = int(probs.argmax().item())
 
-        # Run GNNExplainer on the computation subgraph.
-        # explanation_type='model' does not require a target label.
+        # Run GNNExplainer — produces node_mask (feature attribution per node).
+        # edge_mask_type=None so PyG skips gradient-based edge initialisation
+        # (unsupported by TransformerConv+beta=True for arbitrary subgraphs).
         explanation = self.explainer(
             x=sub_x,
             edge_index=sub_edge_index,
             index=target_in_sub,
         )
 
-        edge_mask = explanation.edge_mask.detach().cpu().numpy()
+        # node_mask shape: (num_subgraph_nodes, num_features)
         node_mask = explanation.node_mask.detach().cpu().numpy()
+
+        # ── Derive edge importance from node importance ────────────────────
+        # Since edge_mask_type=None, we compute edge importance analytically:
+        # importance(u→v) = sqrt(node_imp[u] * node_imp[v]) — geometric mean
+        # of endpoint importances. This is semantically correct: an edge is
+        # explanatory when *both* connected transactions have high attribution.
+        global_subset = subset.cpu().numpy()
+        sub_edges = sub_edge_index.cpu().numpy()
+        node_importance = node_mask.mean(axis=1)  # avg feature imp per node
+        num_edges = sub_edges.shape[1]
+        edge_mask = np.zeros(num_edges, dtype=np.float32)
+        for i in range(num_edges):
+            u, v = sub_edges[0, i], sub_edges[1, i]
+            edge_mask[i] = float(np.sqrt(max(node_importance[u], 0.0) *
+                                         max(node_importance[v], 0.0)))
 
         # Top features for target node
         target_feat_imp = node_mask[target_in_sub]
@@ -185,10 +199,7 @@ class FraudExplainer:
             for idx in top_feat_indices
         ]
 
-        # Extract top edges
-        global_subset = subset.cpu().numpy()
-        sub_edges = sub_edge_index.cpu().numpy()
-
+        # Extract important edges by threshold
         important_edges = []
         for i, weight in enumerate(edge_mask):
             if weight >= edge_threshold:
@@ -202,9 +213,9 @@ class FraudExplainer:
 
         # Sort edges by weight descending
         important_edges.sort(key=lambda e: e["weight"], reverse=True)
-        if len(important_edges) == 0 and len(edge_mask) > 0:
+        if len(important_edges) == 0 and num_edges > 0:
             # Fallback to top-3 edges if none passed threshold
-            top_edge_idx = np.argsort(-edge_mask)[:min(3, len(edge_mask))]
+            top_edge_idx = np.argsort(-edge_mask)[:min(3, num_edges)]
             for i in top_edge_idx:
                 important_edges.append({
                     "src": int(global_subset[sub_edges[0, i]]),
