@@ -1,0 +1,170 @@
+XAI-GT
+Explainable Graph Transformer for Auditable Blockchain Fraud Detection
+Revised Project Proposal — Explainability-First Framing
+Prepared by: Abhinav
+Anurag University — Department of Information Technology
+July 2026
+Table of Contents
+Abstract
+Blockchain networks such as Bitcoin and Ethereum have enabled decentralized financial transactions, but their pseudonymous and highly interconnected structure has also made them attractive to money launderers, Ponzi scheme operators, and other financial criminals. Recent research has demonstrated that graph transformer architectures — which combine graph neural network message passing with transformer-style attention — substantially outperform traditional, transaction-independent fraud classifiers by modelling both local wallet behaviour and long-range transaction dependencies.
+However, a review of current literature (2023–2026) shows that nearly all existing graph-transformer-based fraud detection systems, including a directly comparable prior work also titled “AHGT-DFD,” optimize purely for classification accuracy (F1-score, AUC) and provide no human-interpretable justification for individual fraud flags. This is a significant practical gap: financial institutions and regulators cannot legally act on a fraud determination without being able to explain the reasoning behind it, particularly under Anti-Money-Laundering (AML) compliance frameworks.
+This project proposes XAI-GT, an Explainable Graph Transformer framework for blockchain fraud detection that pairs high-accuracy fraud classification with subgraph-level, human-readable explanations for every risk score it generates. The system is evaluated not only on standard classification metrics but also on explanation fidelity — a measure of whether the highlighted evidence is genuinely responsible for the model's decision. The result is a framework suitable for real-world AML and compliance workflows, where every automated flag can be traced to a concrete, auditable chain of evidence.
+1. Introduction
+Blockchain technology enables secure, decentralized financial transactions without relying on a central authority. This same openness, however, allows malicious actors to move illicit funds through long chains of intermediary wallets, deliberately structuring transactions to evade detection. Traditional rule-based and single-transaction machine learning approaches struggle to catch these patterns because fraud is fundamentally a relational phenomenon — it emerges from the structure of who is transacting with whom, not from any single transaction viewed in isolation.
+Graph Transformer architectures address this by modelling the blockchain as a transaction graph and learning both local neighbourhood patterns and long-range dependencies through attention mechanisms. Multiple recent works (Section 3) confirm this approach outperforms conventional Graph Neural Networks (GNNs) on benchmarks such as the Elliptic Bitcoin dataset. What remains unaddressed is interpretability: a bank compliance officer, a court, or a regulator cannot act on a black-box “fraud: 97%” score without knowing why the system reached that conclusion.
+This project directly addresses that gap.
+2. Problem Statement
+Existing graph-transformer-based fraud detection systems achieve strong classification performance but operate as black boxes. They cannot produce the kind of auditable, subgraph-level evidence required for real-world AML compliance, regulatory reporting, or legal proceedings. There is a need for a fraud detection framework that is simultaneously accurate, adaptive to evolving fraud patterns, and capable of generating faithful, human-interpretable explanations for each decision it makes.
+3. Objectives
+To model blockchain transactions as a dynamic graph structure of wallets and transfers.
+To design and train a Graph Transformer-based fraud classification model.
+To identify suspicious wallets and generate calibrated fraud risk scores.
+To integrate a post-hoc explainability module that produces subgraph-level, human-readable justifications for each flagged wallet or transaction.
+To quantitatively evaluate explanation quality using fidelity and sparsity metrics, not just classification accuracy.
+To provide an interactive dashboard with a dedicated “Why was this flagged?” panel for investigators.
+4. Scope
+Fraud and money-laundering detection in blockchain transaction networks (primary: Bitcoin, via the Elliptic dataset).
+Risk assessment and explanation generation for individual wallets and transaction chains.
+Explainability evaluation as a first-class component of the system, not an afterthought.
+Dashboard-based presentation suitable for non-technical compliance investigators.
+Out of scope for the current phase: live/real-time blockchain monitoring and full cross-chain tracking (both noted as future work, Section 10).
+5. Related Work and Literature Gap
+A review of recent literature shows this problem space is active but consistently accuracy-focused:
+Work
+Contribution
+Explainability?
+BERT4ETH (Hu et al., 2023)
+Pre-trained transformer for Ethereum fraud detection
+No
+EthAegis (2025)
+GraphSAGE + hierarchical embeddings, real-time focus
+No
+MANDATE (2025/26)
+Multi-scale adaptive neighbourhood transformer
+No
+Wavelet-Temporal Graph Transformer (2026)
+Wavelet decomposition + temporal attention for Bitcoin AML
+No
+CoSemiGNN (2025)
+Dynamic GNN with semi-supervised co-association
+No
+ETH-GBERT (2025)
+Dynamic fusion of graph structure + text semantics
+No
+AHGT-DFD (IEEE, 2025)
+Dirichlet-process pattern discovery + continual learning + heterogeneous graph transformer, with PAC-learning guarantees
+No
+None of these works report explanation fidelity or provide subgraph-level evidence suitable for compliance use. This project's methodological foundation for closing that gap draws on established explainability techniques for graph neural networks — principally GNNExplainer (Ying et al., 2019) and PGExplainer (Luo et al., 2020) — applied here to a graph transformer fraud classifier for the first time in the blockchain AML context.
+Positioning statement: This project does not compete with AHGT-DFD (IEEE, 2025) on theoretical guarantees or raw accuracy. Instead, it addresses a complementary and practically important gap — auditable interpretability — that the prior work explicitly does not cover.
+6. System Architecture
+The revised pipeline extends the original architecture with an explainability module and an evaluation stage dedicated to explanation quality:
+■  Blockchain Dataset
+↓
+■  Data Preprocessing
+↓
+■  Graph Construction
+↓
+■  Feature Extraction
+↓
+■  Graph Transformer (Fraud Classification)
+↓
+■  Risk Score Generation
+↓
+■  Explainability Module (GNNExplainer / PGExplainer)
+↓
+■  Fidelity & Sparsity Evaluation
+↓
+■  Dashboard Visualization (with “Why Flagged?” panel)
+7. Proposed Methodology
+Step 1: Data Collection
+Elliptic Bitcoin Dataset (primary).
+Optional: small labelled Ethereum sample (e.g., XBlock / Etherscan-labelled data) to test generalization.
+Step 2: Data Preprocessing
+Missing value handling, normalization, feature scaling, label encoding.
+Step 3: Graph Construction
+Nodes = wallet addresses; Edges = transactions (e.g., Wallet A → Wallet B → Wallet C).
+Step 4: Feature Extraction
+Feature
+Description
+In-Degree
+Number of incoming transactions
+Out-Degree
+Number of outgoing transactions
+Transaction Amount
+Total value transferred
+Transaction Frequency
+Transactions per time interval
+Clustering Coefficient
+Local community behaviour
+Centrality Measures
+Importance of a node in the network
+Step 5: Graph Transformer Training
+Learns local neighbourhood patterns and long-range wallet interactions via self-attention.
+Attention weights are logged per hop — this is retained deliberately as a lightweight, built-in source of explanation evidence.
+Step 6: Fraud Classification & Risk Scoring
+Output classes: Legitimate / Fraudulent.
+A continuous 0–100 risk score is generated per wallet, calibrated for interpretability.
+Step 7: Explainability Module (New)
+Apply GNNExplainer / PGExplainer to identify the minimal subgraph (specific wallets and edges) responsible for a given fraud prediction.
+Translate the explanation subgraph into a plain-language summary, e.g., “94% of incoming funds were forwarded within 3 minutes across a 4-hop chain.”
+Step 8: Explanation Evaluation (New)
+Fidelity: does removing the highlighted subgraph change the model's prediction? A faithful explanation should cause a significant prediction shift.
+Sparsity: is the explanation concise enough to be human-readable, rather than highlighting the entire graph?
+Step 9: Dashboard Visualization
+Interactive Streamlit dashboard showing risk scores, transaction chains, and a dedicated “Why was this flagged?” panel presenting the explanation subgraph and plain-language rationale.
+8. Technologies Used
+Component
+Technology
+Language
+Python
+Data Processing
+Pandas, NumPy
+Deep Learning
+PyTorch
+Graph Learning
+PyTorch Geometric
+Explainability
+GNNExplainer, PGExplainer (PyG built-in)
+Visualization
+Plotly
+Dashboard
+Streamlit
+Graph Processing
+NetworkX
+9. Evaluation Plan
+Classification metrics: Precision, Recall, F1-score, ROC-AUC (benchmarked against Elliptic dataset baselines from prior literature).
+Explainability metrics: Fidelity+, Fidelity-, Sparsity (standard GNN-explanation evaluation metrics).
+Ablation study: compare the base graph transformer against the explainability-augmented pipeline to confirm explanations do not degrade classification performance.
+10. Advantages
+Detects complex, multi-hop fraud patterns via graph transformer attention.
+Produces auditable, subgraph-level justifications suitable for compliance reporting.
+Explanation fidelity is measured quantitatively, not just presented qualitatively.
+Dashboard designed for non-technical investigators, not just data scientists.
+11. Applications
+Cryptocurrency exchange compliance teams.
+Anti-Money-Laundering (AML) investigation units.
+Financial intelligence and regulatory agencies.
+Blockchain analytics companies requiring explainable audit trails.
+12. Future Enhancements
+Real-time streaming fraud detection.
+Cross-chain fraud tracing (following funds across Bitcoin, Ethereum, and other chains).
+Federated learning across multiple exchanges without sharing raw transaction data.
+Multi-agent AI systems for collaborative investigation workflows.
+13. Conclusion
+XAI-GT reframes blockchain fraud detection around a practical, underserved requirement: auditability. Rather than competing with existing graph-transformer fraud detection systems on raw accuracy or theoretical guarantees, this project contributes a rigorously evaluated explainability layer that makes automated fraud detection usable in real regulatory and compliance settings. This positions the project as both a viable academic contribution — addressing a clearly identified gap in current literature — and a practically deployable system for financial institutions.
+14. References for Literature Review
+Prior accuracy-focused fraud detection work:
+Hu, S., Zhang, Z., Luo, B., Lu, S., He, B., & Liu, L. (2023). BERT4ETH: A Pre-trained Transformer for Ethereum Fraud Detection. arXiv:2303.18138.
+EthAegis: Feature-graph based Fraud Detection in Ethereum Transactions. ACM Workshop on AI and Security (2025).
+MANDATE: Multi-Scale Adaptive Neighborhood Awareness Transformer. arXiv (2025/2026).
+Detecting Illicit Transactions in Bitcoin: A Wavelet-Temporal Graph Transformer Approach for AML. Scientific Reports (Jan 2026).
+CoSemiGNN: Blockchain Fraud Detection with Dynamic GNNs based on Co-association of Semi-supervised Learning. ScienceDirect (Sept 2025).
+Dynamic Feature Fusion (ETH-GBERT): Combining Global Graph Structures and Local Semantics for Blockchain Fraud Detection. arXiv (2025).
+AHGT-DFD: Adaptive Hierarchical Graph Transformer for Dynamic Fraud Detection in Blockchain Networks. IEEE Xplore (2025) — cited as directly related prior work; this project explicitly differentiates on explainability.
+Liu, T., Wang, Y., Sun, J., et al. (2024). The Role of Transformer Models in Advancing Blockchain Technology: A Systematic Survey. arXiv:2409.02139.
+Irofti, P., Patrascu, A., & Baltoiu, A. (2019). Quick Survey of Graph-Based Fraud Detection Methods. arXiv:1910.11299.
+Explainability foundation:
+Ying, R., Bourgeois, D., You, J., Zhang, M., & Leskovec, J. (2019). GNNExplainer: Generating Explanations for Graph Neural Networks. NeurIPS 2019.
+Luo, D., Cheng, W., Xu, D., et al. (2020). Parameterized Explainer for Graph Neural Network (PGExplainer). NeurIPS 2020.
+Dataset:
+Weber, M., Xu, M., et al. (2019). Anti-Money Laundering in Bitcoin: Experimenting with Graph Convolutional Networks for Financial Forensics. Elliptic Bitcoin Dataset.

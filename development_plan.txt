@@ -1,0 +1,195 @@
+STAGE 1 — Environment & Repo Setup
+Context: Starting a new project called xai-gt for blockchain fraud detection.
+Task: Create this folder structure: /data, /src/preprocessing, /src/models,
+/src/explain, /src/visualize, /dashboard, /notebooks. Create requirements.txt
+with torch, torch_geometric, pandas, numpy, networkx, streamlit,
+streamlit-agraph, plotly, scikit-learn. Create config.py centralizing all
+file paths and hyperparameters.
+Acceptance criteria: `python -c "import config"` runs with no errors.
+STAGE 2 — Data Loading & Cleaning
+Context: Using the Elliptic Bitcoin Dataset (3 CSVs: features, classes, edgelist).
+Task: Write src/preprocessing/data_loader.py with a load_elliptic() function
+that merges the CSVs on transaction ID, separates 'unknown' labels, and
+returns train/val/test splits using TIME-STEP-based splitting (not random —
+this dataset is temporal).
+Acceptance criteria: load_elliptic() returns three non-overlapping dataframes
+with zero nulls; print shapes to confirm.
+STAGE 3 — Graph Construction & Feature Engineering
+Context: Cleaned dataframes are available from Stage 2.
+Task: Write src/preprocessing/graph_builder.py that builds a PyTorch Geometric
+Data object: node features from Elliptic columns, edge_index from the
+edgelist, y from labels. Add computed features (in-degree, out-degree,
+clustering coefficient) via NetworkX. Cache the result with torch.save().
+Acceptance criteria: print(graph_data) shows ~203K nodes, ~234K edges,
+correct feature dimension.
+
+STAGE 4 — Baseline Model
+Context: graph_data object is cached from Stage 3.
+Task: Implement a 2-layer GraphSAGE classifier in src/models/baseline.py
+for binary fraud classification. Use NeighborLoader for mini-batching.
+Track train/val loss and F1 per epoch. Save best checkpoint to
+/models/baseline.pt.
+Acceptance criteria: Validation F1 reaches a reasonable range (~0.85+ typical
+on Elliptic) — if not, flag that the bug is likely upstream in Stage 2/3, not here.
+
+STAGE 5 — Graph Transformer (Kaggle)
+Context: This stage runs on Kaggle, not locally — no GPU on this machine.
+Task: Implement a Graph Transformer in src/models/graph_transformer.py using
+PyTorch Geometric's TransformerConv (2-3 layers, multi-head attention).
+Use NeighborLoader (batch_size=512, sampling depth=2) tuned for a T4 GPU.
+Log attention weights during forward pass for later explainability use.
+Save state_dict as /models/graph_transformer.pt.
+Acceptance criteria: Transformer's val F1 exceeds the Stage 4 baseline.
+Note: copy this file into a Kaggle notebook cell-by-cell; do not attempt to
+run training locally.
+
+STAGE 6 — Explainability Module
+Context: Trained model weights available from Stage 5 (downloaded from Kaggle).
+Task: Write src/explain/explainer.py with a function explain_wallet(wallet_id)
+using PyTorch Geometric's GNNExplainer. Return the top contributing subgraph
+(node/edge list) and a plain-language summary from feature importances.
+Implement fidelity+ and sparsity metrics, evaluated across 50 sampled
+flagged wallets.
+Acceptance criteria: explain_wallet() runs in under 5 seconds per wallet on
+this laptop's CPU; fidelity/sparsity scores print to console.
+
+STAGE 7a — Graph Visualizer: Static Render
+Context: Need a new component in src/visualize/network_view.py using the
+streamlit-agraph library.
+Task: Write a function render_graph(node_list, edge_list) that converts a
+subset of the transaction graph into agraph Node/Edge objects and renders
+them in a standalone Streamlit test page (dashboard/test_visualizer.py).
+Sample no more than 200 nodes for this first pass — full graph is too dense.
+Acceptance criteria: `streamlit run dashboard/test_visualizer.py` shows a
+readable node-edge graph with no overlap chaos.
+
+STAGE 7b — Graph Visualizer: Ego-Network Filtering
+Context: Static renderer works from 7a.
+Task: Add a get_ego_network(wallet_id, hops=2) function using NetworkX
+ego_graph, and wire it into render_graph() so the visualizer only shows a
+given wallet's N-hop neighborhood instead of a random sample.
+Acceptance criteria: Selecting different wallet IDs produces visibly
+different, correctly-scoped subgraphs.
+
+STAGE 7c — Graph Visualizer: Risk & Volume Encoding
+Context: Ego-network filtering works from 7b. Risk scores available from
+the trained model (Stage 5/6).
+Task: Update render_graph() so node color maps to risk score (green→red
+gradient) and node size maps to transaction volume; edge thickness maps to
+transaction amount.
+Acceptance criteria: A known fraudulent wallet visibly renders red/large
+compared to legitimate neighbors.
+
+STAGE 7d — Graph Visualizer: Click-to-Explore
+Context: agraph's return value gives the clicked node ID back to Streamlit.
+Task: Capture the click event from render_graph() and use it to re-center
+the ego-network on the newly selected wallet, updating the view reactively
+without a full page reload.
+Acceptance criteria: Clicking any visible node smoothly re-centers the graph
+on that wallet within the same Streamlit session.
+
+STAGE 7e — Graph Visualizer: Explanation Overlay
+Context: GNNExplainer output available from Stage 6.
+Task: Overlay the explanation subgraph from explain_wallet() onto the
+network visualizer in a distinct highlight color (e.g., orange), so the
+"why flagged" evidence is visually distinguishable from the rest of the
+ego-network.
+Acceptance criteria: For a flagged wallet, the explanation subgraph nodes/
+edges are visually distinct from the rest of the graph.
+
+STAGE 8 — Full Dashboard Integration
+Context: All components (risk scoring, explainability, visualizer) exist
+as separate tested pieces.
+Task: Build dashboard/app.py combining: sidebar wallet search/selector,
+risk score gauge, the interactive graph visualizer (7a–7e) as the main
+panel, and a "Why Flagged?" expander with the plain-language explanation.
+Cache model loading with @st.cache_resource.
+Acceptance criteria: Full user flow works end-to-end — search wallet →
+see risk score → see interactive graph → click a node → see it update →
+see explanation.
+
+STAGE 9 — Testing, Docs & Paper-Ready Results
+Context: Full system is functional from Stage 8.
+Task: Write run_evaluation.py producing a results table (F1, AUC, fidelity,
+sparsity) as markdown + CSV. Write README.md covering setup, how to
+reproduce each stage, and how to run the dashboard.
+Acceptance criteria: A new clone of the repo can go from raw data to a
+running dashboard by following only the README.
+
+STAGE 10 (FUTURE / v2) — 3D Graph Visualizer Upgrade
+Context: 2D visualizer (Stage 7) is complete and working.
+Task: Prototype a 3D version of the graph visualizer using Plotly's 3D
+scatter/line traces first (rotate/zoom support, moderate interactivity,
+low implementation cost). If performance or visual richness is
+insufficient for the target graph size, evaluate a custom Three.js
+component embedded via streamlit.components.v1.html for full WebGL
+physics-based 3D layout.
+Acceptance criteria: 3D view renders the same ego-network data as the 2D
+version, with rotate/zoom controls, without breaking existing 2D dashboard
+functionality.
+
+
+
+
+Next things
+
+1. Fix the Fidelity+ & F1 Gap — Re-tune GNNExplainer
+Looking at your actual results_table.md, there's a stark gap vs. your README targets:
+
+Metric	Actual	Target
+Illicit F1	0.40	≥ 0.85
+ROC-AUC	0.83	≥ 0.90
+Fidelity+	0.015	> 0.30
+Sparsity	45.1%	> 50%
+The biggest win: increase GNNExplainer epochs from 60 → 200 and switch to explanation_type="phenomenon" instead of "model" in 
+
+explainer.py
+. This alone can push Fidelity+ from ~0.015 to ~0.30+.
+
+2. Add SMOTE / Class-Reweighting for Better Illicit F1
+The Elliptic dataset is severely imbalanced (~2% illicit). Your precision is only 0.375. Add focal loss or increase pos_weight in the Graph Transformer training to push recall without tanking precision.
+
+🟠 High Value (Publishable Improvements)
+3. Temporal Drift Detection Panel
+Your time-step splitting is rigorous — leverage it! Add a dashboard panel showing fraud probability trends across all 49 timesteps using a Plotly line chart. This shows when fraud clusters occur, which is forensically invaluable and differentiates the project strongly.
+
+4. Alternative Explainability: Integrated Gradients / PGExplainer
+GNNExplainer is a local, per-node method. Adding PGExplainer (which learns a global explanation policy across all nodes) would give:
+
+Much higher Fidelity+ scores
+Faster inference (no per-node optimization)
+A comparison table between explainers
+5. Multi-Hop Transaction Chain Tracing
+Add a "Follow the Money" feature in the dashboard — given a flagged node, trace the longest suspicious transaction chain downstream using BFS. Render it as a highlighted path in the 2D graph. This is a feature investigators actually use.
+
+🟡 Medium Value (UX & Presentation)
+6. Confusion Matrix & ROC Curve in Dashboard
+Add a 📊 Model Performance tab to the dashboard showing:
+
+Full confusion matrix (Plotly heatmap)
+ROC curve with AUC shading
+Precision-Recall curve (more meaningful for imbalanced data)
+This is a standard expectation for academic mini-projects and takes ~50 lines.
+
+7. Batch Investigation Mode (CSV Upload)
+Let investigators upload a CSV of wallet IDs and get a batch risk report table with downloadable results. This simulates real forensic workflows and elevates the project from a demo to a tool.
+
+8. UMAP/t-SNE Embedding Visualizer
+Add a tab showing the graph transformer's latent embeddings projected to 2D using UMAP. Illicit vs. licit clusters visually separating in embedding space is a powerful validation that the model has learned meaningful representations.
+
+🟢 Lower Effort, Good Polish
+9. Case History / Session Log
+Store investigated wallets in st.session_state and show a "Recent Investigations" panel in the sidebar. Users can click back to previously analyzed transactions — makes the tool feel like a real forensic workstation.
+
+10. Export Forensic Report as PDF/HTML
+Add a "📄 Export Report" button that generates a self-contained HTML report for a given wallet: includes risk score, explanation summary, feature attribution chart, and subgraph visualization. Critical for any real-world use case.
+
+11. Confidence Calibration Check
+Your model outputs raw softmax probabilities — add Platt scaling or temperature scaling post-training calibration. This ensures that a "70% fraud probability" actually means 70% of such transactions are illicit, which is required for trustworthy forensic evidence.
+
+📋 Recommended Priority Order
+1. Fix Fidelity+  →  increases academic credibility
+2. Temporal Drift Panel  →  unique visual storytelling
+3. Confusion Matrix / ROC tab  →  expected by evaluators
+4. PGExplainer comparison  →  publishable contribution
+5. Follow-the-Money chain  →  high forensic value
