@@ -280,6 +280,20 @@ class FraudExplainer:
             if hasattr(_module, "_alpha"):
                 _module._alpha = None
         self.model.eval()
+
+        # ---- Reset GNNExplainer algorithm's own internal mask state ---------
+        # GNNExplainer stores node_mask / hard_node_mask / edge_mask /
+        # hard_edge_mask on the *algorithm object itself* (not on model layers).
+        # These persist between explain_node() calls.  When the next call's
+        # 2-hop subgraph has a different number of nodes, the stale
+        # hard_node_mask shape (e.g. [10, 165]) mismatches the new node_mask
+        # shape (e.g. [9, 165]), causing:
+        #   IndexError: shape of mask [9,165] doesn't match indexed tensor [10,165]
+        # Clearing them here forces a clean slate for every call.
+        algo = self.explainer.algorithm
+        for _attr in ("node_mask", "hard_node_mask", "edge_mask", "hard_edge_mask"):
+            if hasattr(algo, _attr):
+                setattr(algo, _attr, None)
         # ---------------------------------------------------------------------
 
         return {
