@@ -4,13 +4,12 @@ Extracts top contributing subgraphs, identifies critical transaction features,
 generates plain-language reasoning, and computes fidelity+ and sparsity metrics.
 
 Key tuning (v2):
-    - GNNExplainer epochs : 200  (was 60)  → richer mask convergence
-    - explanation_type    : 'model'         → required for TransformerConv
-      (phenomenon mode fails with beta=True residual attention gating)
-    - edge_threshold      : 0.15           (was 0.25)   → captures more
-      explanation structure, boosting sparsity above 50 %
-    - Fidelity+           : computed via top-50 % edge mask removal so
-      the metric is stable regardless of absolute mask magnitudes
+    - GNNExplainer epochs : 200  (was 60)   → richer node-mask convergence
+    - edge_mask_type      : None            → gradient-based edge init fails
+      for TransformerConv+beta=True; edge importance derived from node_mask
+      instead (geometric mean of endpoint importances)
+    - edge_threshold      : 0.15  (was 0.25) → richer subgraph captures
+    - Fidelity+           : median percentile mask removal for stability
 """
 
 import sys
