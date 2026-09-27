@@ -4,7 +4,7 @@
 [![PyTorch](https://img.shields.io/badge/PyTorch-2.0+-ee4c2c.svg)](https://pytorch.org/)
 [![PyG](https://img.shields.io/badge/PyTorch--Geometric-2.4+-3C2179.svg)](https://pyg.org/)
 [![Streamlit](https://img.shields.io/badge/Streamlit-1.30+-FF4B4B.svg)](https://streamlit.io/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![License: Proprietary](https://img.shields.io/badge/License-Proprietary%20%C2%A9-red.svg)](LICENSE)
 
 **XAI-GT** is an end-to-end Explainable Graph Transformer architecture for detecting illicit transactions and money laundering schemes in the Bitcoin network using the Elliptic Bitcoin dataset (~203K transaction nodes, ~234K directed transaction flow edges).
 
