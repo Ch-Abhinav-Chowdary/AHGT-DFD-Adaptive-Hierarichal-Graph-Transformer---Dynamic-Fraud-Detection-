@@ -5,8 +5,8 @@ generates plain-language reasoning, and computes fidelity+ and sparsity metrics.
 
 Key tuning (v2):
     - GNNExplainer epochs : 200  (was 60)  → richer mask convergence
-    - explanation_type    : 'phenomenon'   (was 'model') → targets the
-      predicted class directly, giving meaningful fidelity on fraud nodes
+    - explanation_type    : 'model'         → required for TransformerConv
+      (phenomenon mode fails with beta=True residual attention gating)
     - edge_threshold      : 0.15           (was 0.25)   → captures more
       explanation structure, boosting sparsity above 50 %
     - Fidelity+           : computed via top-50 % edge mask removal so
@@ -97,15 +97,19 @@ class FraudExplainer:
             self.edge_index = self.graph_data.edge_index
 
         # ── Instantiate PyG Explainer with GNNExplainer ────────────────────
-        # explanation_type='phenomenon' targets the *predicted* class label
-        # (the fraud decision) rather than the raw model output distribution.
-        # This gives meaningful Fidelity+ scores on illicit nodes because the
-        # metric measures how much the fraud *prediction* drops when the
-        # explanation subgraph is removed, which is exactly what we care about.
+        # explanation_type='model' explains the full output distribution.
+        # NOTE: We use 'model' (not 'phenomenon') because TransformerConv
+        # with beta=True uses residual attention gating that does not expose
+        # edge gradients in the standard message-passing form that PyG's
+        # phenomenon-mode gradient initialiser requires — doing so raises:
+        #   "Could not compute gradients for edges."
+        # The Fidelity+ improvement comes instead from:
+        #   (a) 200-epoch mask convergence (was 60), and
+        #   (b) the median-percentile masking logic below.
         self.explainer = Explainer(
             model=self.model,
             algorithm=GNNExplainer(epochs=epochs),
-            explanation_type="phenomenon",   # was "model"
+            explanation_type="model",
             node_mask_type="attributes",
             edge_mask_type="object",
             model_config=dict(
@@ -158,7 +162,8 @@ class FraudExplainer:
             risk_score = probs[1].item()
             predicted_class = int(probs.argmax().item())
 
-        # Run GNNExplainer on the computation subgraph
+        # Run GNNExplainer on the computation subgraph.
+        # explanation_type='model' does not require a target label.
         explanation = self.explainer(
             x=sub_x,
             edge_index=sub_edge_index,
