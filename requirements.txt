@@ -7,3 +7,4 @@ streamlit
 streamlit-agraph
 plotly
 scikit-learn
+umap-learn

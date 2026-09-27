@@ -45,6 +45,7 @@ from src.visualize.network_3d import (
     layout_graph_3d,
     render_graph_3d,
 )
+from src.visualize.embedding_viz import build_embedding_figure
 
 # ---------------------------------------------------------------------------
 # Streamlit Page Config
@@ -449,7 +450,11 @@ else:
 # ---------------------------------------------------------------------------
 st.markdown("### 🕸️ **Interactive Transaction Graph**")
 
-tab_2d, tab_3d = st.tabs(["🗺️  2D Force-Directed", "🌐  3D WebGL"])
+tab_2d, tab_3d, tab_emb = st.tabs([
+    "🗺️  2D Force-Directed",
+    "🌐  3D WebGL",
+    "🔮  Embedding Space",
+])
 
 # ---- 2D tab (Stage 7a–7e, unchanged) ------------------------------------
 with tab_2d:
@@ -519,6 +524,81 @@ with tab_3d:
             if nav_idx != curr_wallet:
                 st.session_state["wallet_id"] = int(nav_idx)
                 st.rerun()
+
+# ---- Embedding Space tab (UMAP / t-SNE) ---------------------------------
+with tab_emb:
+    st.markdown(
+        """
+        Latent embeddings extracted from the Graph Transformer's penultimate layer,
+        projected to 2D. **Tight, well-separated clusters** are visual proof that the
+        model has learned distinct fraud and licit representations.
+        """
+    )
+
+    emb_c1, emb_c2, emb_c3 = st.columns([1, 1, 1])
+    with emb_c1:
+        emb_method = st.selectbox(
+            "Projection Method",
+            options=["umap", "tsne"],
+            format_func=lambda x: "UMAP (fast, topology-preserving)" if x == "umap" else "t-SNE (local structure)",
+            key="emb_method",
+        )
+    with emb_c2:
+        emb_color = st.selectbox(
+            "Colour By",
+            options=["label", "risk"],
+            format_func=lambda x: "Ground-Truth Label" if x == "label" else "Model Risk Score (continuous)",
+            key="emb_color",
+        )
+    with emb_c3:
+        emb_max = st.slider(
+            "Max Nodes Sampled",
+            min_value=500,
+            max_value=5000,
+            value=3000,
+            step=500,
+            key="emb_max",
+            help="More nodes = richer plot but slower projection.",
+        )
+
+    if model is None:
+        st.warning("⚠️ Graph Transformer checkpoint not loaded — cannot extract embeddings.")
+    else:
+        @st.cache_data(show_spinner=f"Computing {emb_method.upper()} projection …")
+        def _cached_embedding(method: str, color_by: str, max_n: int):
+            """Cache keyed on method + color + sample size."""
+            return build_embedding_figure(
+                model=model,
+                graph_data=data,
+                method=method,
+                color_by=color_by,
+                max_nodes=max_n,
+                highlight_node=curr_wallet,
+                device=torch.device("cpu"),
+            )
+
+        with st.spinner(f"Running {emb_method.upper()} on {emb_max:,} nodes …"):
+            emb_fig = _cached_embedding(emb_method, emb_color, emb_max)
+
+        st.plotly_chart(emb_fig, use_container_width=True, key="emb_plot")
+
+        # ── Stats callout ────────────────────────────────────────────────
+        illicit_count = int((data.y == 1).sum().item())
+        licit_count   = int((data.y == 0).sum().item())
+        emb_c_a, emb_c_b = st.columns(2)
+        with emb_c_a:
+            st.info(
+                f"**Dataset breakdown (labelled nodes)**\n\n"
+                f"🔴 Illicit: **{illicit_count:,}** ({illicit_count/(illicit_count+licit_count):.1%})  \n"
+                f"🟢 Licit:   **{licit_count:,}** ({licit_count/(illicit_count+licit_count):.1%})"
+            )
+        with emb_c_b:
+            st.info(
+                "**How to read this plot**\n\n"
+                "Well-separated colour clusters → the model has learned **distinct latent "
+                "representations** for fraud vs. licit transactions.  \n"
+                "Overlap regions indicate ambiguous / borderline cases."
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -623,6 +703,6 @@ with st.expander(f"📋 **Immediate Neighborhood Transactions ({len(node_list)} 
 # ---------------------------------------------------------------------------
 st.markdown("""
 <div style='text-align:center;color:#475569;font-size:0.8rem;padding-top:2.5rem;padding-bottom:1rem;'>
-    XAI-GT · Explainable AI for Blockchain Fraud Detection · Stages 8 &amp; 10 — 2D + 3D Graph Intelligence
+    XAI-GT · Explainable AI for Blockchain Fraud Detection · Stages 8 &amp; 10 — 2D + 3D + Embedding Space
 </div>
 """, unsafe_allow_html=True)
