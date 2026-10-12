@@ -426,30 +426,54 @@ def train_baseline(
     return history, graph_data
 
 
-def evaluate_baseline(
-    graph_data: Optional[Data] = None,
+def load_trained_baseline(
     checkpoint_path: Optional[Path] = None,
+    device: Optional[torch.device] = None,
+) -> tuple[GraphSAGEClassifier, dict]:
+    """Load the trained GraphSAGE baseline model from disk."""
+    checkpoint_path = checkpoint_path or config.BASELINE_CHECKPOINT
+    if not checkpoint_path.exists():
+        raise FileNotFoundError(
+            f"Checkpoint not found at {checkpoint_path}. Run train_baseline() first."
+        )
+
+    device = device or torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    ckpt = torch.load(checkpoint_path, map_location=device, weights_only=False)
+    model = GraphSAGEClassifier(
+        in_channels=ckpt["in_channels"],
+        hidden_channels=ckpt.get("hidden_dim", config.HIDDEN_DIM),
+        dropout=ckpt.get("dropout", config.DROPOUT),
+    ).to(device)
+    model.load_state_dict(ckpt["model_state"])
+    model.eval()
+
+    meta = {
+        "epoch": ckpt.get("epoch", 0),
+        "val_f1": ckpt.get("val_f1", 0.0),
+        "in_channels": ckpt["in_channels"],
+        "hidden_dim": ckpt.get("hidden_dim", config.HIDDEN_DIM),
+    }
+    return model, meta
+
+
+def evaluate_baseline(
+    checkpoint_path: Optional[Path] = None,
+    graph_data: Optional[Data] = None,
     split: str = "test",
-) -> dict:
-    """Load the saved checkpoint and evaluate on val or test split.
+) -> dict[str, float]:
+    """
+    Load checkpoint and evaluate on the specified split ('val' or 'test').
 
     Parameters
     ----------
-    graph_data      : PyG Data object (loaded from cache if None).
-    checkpoint_path : Path to the .pt checkpoint.
+    checkpoint_path : Path to baseline.pt (defaults to models/baseline.pt).
+    graph_data      : Pre-loaded Data object. If None, loads from cache.
     split           : 'val' or 'test'.
 
     Returns
     -------
     metrics : dict with keys 'f1', 'auc', 'loss'.
     """
-    checkpoint_path = checkpoint_path or config.BASELINE_CHECKPOINT
-    if not checkpoint_path.exists():
-        raise FileNotFoundError(
-            f"Checkpoint not found at {checkpoint_path}. "
-            "Run train_baseline() first."
-        )
-
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     # --- Load graph ---
@@ -458,13 +482,7 @@ def evaluate_baseline(
     graph_data = graph_data.to(device)
 
     # --- Rebuild model from checkpoint metadata ---
-    ckpt = torch.load(checkpoint_path, map_location=device, weights_only=False)
-    model = GraphSAGEClassifier(
-        in_channels     = ckpt["in_channels"],
-        hidden_channels = ckpt.get("hidden_dim", config.HIDDEN_DIM),
-        dropout         = ckpt.get("dropout",    config.DROPOUT),
-    ).to(device)
-    model.load_state_dict(ckpt["model_state"])
+    model, _ = load_trained_baseline(checkpoint_path=checkpoint_path, device=device)
 
     # --- Build eval mask ---
     if split == "val":

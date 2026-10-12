@@ -4,6 +4,7 @@ from src.models.baseline import (
     GraphSAGEClassifier,
     train_baseline,
     evaluate_baseline,
+    load_trained_baseline,
 )
 from src.models.graph_transformer import (
     GraphTransformerClassifier,
@@ -14,6 +15,7 @@ __all__ = [
     "GraphSAGEClassifier",
     "train_baseline",
     "evaluate_baseline",
+    "load_trained_baseline",
     "GraphTransformerClassifier",
     "load_trained_graph_transformer",
 ]
