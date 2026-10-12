@@ -208,15 +208,21 @@ def predict_custom_transaction(
         if hasattr(module, "edge_mask"):
             module.edge_mask = None
 
+    # Format input for Graph Transformer
+    gt_in_ch = getattr(model, "in_channels", 165)
+    X_gt = X[:, :gt_in_ch] if X.shape[1] >= gt_in_ch else F.pad(X, (0, gt_in_ch - X.shape[1]))
+
     with torch.no_grad():
-        gt_logits = model(X, edge_index)
+        gt_logits = model(X_gt, edge_index)
         gt_probs = F.softmax(gt_logits, dim=-1)
         gt_fraud_risk = float(gt_probs[0, 1].item())
 
         baseline_fraud_risk = None
         if baseline_model is not None:
             baseline_model = baseline_model.to(device).eval()
-            b_logits = baseline_model(X, edge_index)
+            b_in_ch = getattr(baseline_model, "in_channels", 168)
+            X_b = X[:, :b_in_ch] if X.shape[1] >= b_in_ch else F.pad(X, (0, b_in_ch - X.shape[1]))
+            b_logits = baseline_model(X_b, edge_index)
             b_probs = F.softmax(b_logits, dim=-1)
             baseline_fraud_risk = float(b_probs[0, 1].item())
 
@@ -292,11 +298,6 @@ def predict_node_transaction(
     x_full = graph_data.x.to(device)
     ei_full = graph_data.edge_index.to(device)
 
-    # Trim to in_channels
-    in_ch = getattr(model, "in_channels", 168)
-    if x_full.shape[1] > in_ch:
-        x_full = x_full[:, :in_ch]
-
     target_tensor = torch.tensor([node_id], dtype=torch.long, device=device)
     subset, sub_ei, mapping, _ = k_hop_subgraph(
         node_idx=target_tensor,
@@ -305,18 +306,24 @@ def predict_node_transaction(
         relabel_nodes=True,
     )
 
-    sub_x = x_full[subset]
+    sub_x_raw = x_full[subset]
     local_pos = mapping[0].item()
 
+    # Model input
+    gt_in_ch = getattr(model, "in_channels", 165)
+    sub_x_gt = sub_x_raw[:, :gt_in_ch] if sub_x_raw.shape[1] >= gt_in_ch else F.pad(sub_x_raw, (0, gt_in_ch - sub_x_raw.shape[1]))
+
     with torch.no_grad():
-        gt_logits = model(sub_x, sub_ei)
+        gt_logits = model(sub_x_gt, sub_ei)
         gt_probs = F.softmax(gt_logits, dim=-1)
         gt_fraud_risk = float(gt_probs[local_pos, 1].item())
 
         baseline_fraud_risk = None
         if baseline_model is not None:
             baseline_model = baseline_model.to(device).eval()
-            b_logits = baseline_model(sub_x, sub_ei)
+            b_in_ch = getattr(baseline_model, "in_channels", 168)
+            sub_x_b = sub_x_raw[:, :b_in_ch] if sub_x_raw.shape[1] >= b_in_ch else F.pad(sub_x_raw, (0, b_in_ch - sub_x_raw.shape[1]))
+            b_logits = baseline_model(sub_x_b, sub_ei)
             b_probs = F.softmax(b_logits, dim=-1)
             baseline_fraud_risk = float(b_probs[local_pos, 1].item())
 
