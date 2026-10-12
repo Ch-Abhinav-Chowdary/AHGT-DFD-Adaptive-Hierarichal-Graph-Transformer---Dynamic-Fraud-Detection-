@@ -9,7 +9,7 @@ render_graph_3d(node_list, edge_list, *, highlight_nodes=None,
     node_list / edge_list dicts used by render_graph() in network_view.py.
     Returns the figure so the caller can pass it to st.plotly_chart().
 
-layout_graph_3d(node_list, edge_list, *, seed=42) -> dict[int, tuple[float,float,float]]
+layout_graph_3d(node_list, edge_list, *, iterations=60, seed=42) -> dict[int, tuple[float,float,float]]
     Compute a 3-D spring layout using NetworkX and return a mapping of
     node_id -> (x, y, z).  Exposed so callers can cache the layout
     separately from the render step.
@@ -120,6 +120,7 @@ def layout_graph_3d(
     node_list: list,
     edge_list: list,
     *,
+    iterations: int = 60,
     seed: int = 42,
 ) -> dict:
     """
@@ -136,7 +137,7 @@ def layout_graph_3d(
         return {}
 
     k = 1.5 / math.sqrt(max(G.number_of_nodes(), 1))
-    pos = nx.spring_layout(G, dim=3, seed=seed, k=k, iterations=60)
+    pos = nx.spring_layout(G, dim=3, seed=seed, k=k, iterations=iterations)
 
     return {
         nid: (float(pos[nid][0]), float(pos[nid][1]), float(pos[nid][2]))
@@ -288,6 +289,7 @@ def render_graph_3d(
     height: int = 650,
     physics_seed: int = 42,
     cached_pos=None,
+    pos_3d=None,
 ):
     """
     Build a Plotly 3D scatter figure visualising the transaction ego-network.
@@ -301,6 +303,7 @@ def render_graph_3d(
     height : int                 - Figure height in pixels
     physics_seed : int           - Seed for reproducible spring layout
     cached_pos : dict, optional  - Pre-computed positions to skip re-layout
+    pos_3d : dict, optional      - Alias for cached_pos
 
     Returns
     -------
@@ -309,7 +312,8 @@ def render_graph_3d(
     highlight_nodes = highlight_nodes or set()
     highlight_edges = highlight_edges or set()
 
-    pos = cached_pos if cached_pos is not None else layout_graph_3d(
+    resolved_pos = pos_3d if pos_3d is not None else cached_pos
+    pos = resolved_pos if resolved_pos is not None else layout_graph_3d(
         node_list, edge_list, seed=physics_seed
     )
 

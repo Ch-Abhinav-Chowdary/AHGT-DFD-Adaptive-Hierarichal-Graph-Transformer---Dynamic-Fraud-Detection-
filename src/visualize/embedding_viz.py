@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
-from typing import Literal, Optional, Tuple
+from typing import Any, Literal, Optional, Tuple
 
 import numpy as np
 import torch
@@ -159,14 +159,18 @@ def reduce_to_2d(
         pca = PCA(n_components=n_components_pca, random_state=seed)
         embeddings = pca.fit_transform(embeddings)
 
-    tsne = TSNE(
-        n_components=2,
-        perplexity=min(30, embeddings.shape[0] // 4),
-        learning_rate="auto",
-        init="pca",
-        random_state=seed,
-        n_iter=1000,
-    )
+    tsne_kwargs = {
+        "n_components": 2,
+        "perplexity": min(30, max(5, embeddings.shape[0] // 4)),
+        "learning_rate": "auto",
+        "init": "pca",
+        "random_state": seed,
+    }
+    # Support both newer scikit-learn (max_iter) and older (n_iter)
+    try:
+        tsne = TSNE(**tsne_kwargs, max_iter=1000)
+    except TypeError:
+        tsne = TSNE(**tsne_kwargs, n_iter=1000)
     return tsne.fit_transform(embeddings).astype(np.float32)
 
 
@@ -176,13 +180,17 @@ def reduce_to_2d(
 
 def build_embedding_figure(
     model: torch.nn.Module,
-    graph_data,
+    graph_data: Any = None,
     method: Literal["umap", "tsne"] = "umap",
     color_by: Literal["label", "risk"] = "label",
     max_nodes: int = 5000,
     highlight_node: Optional[int] = None,
     device: Optional[torch.device] = None,
     seed: int = 42,
+    *,
+    target_id: Optional[int] = None,
+    data: Any = None,
+    **kwargs: Any,
 ) -> go.Figure:
     """Build the full UMAP/t-SNE Plotly scatter figure.
 
@@ -201,6 +209,14 @@ def build_embedding_figure(
     -------
     fig : Plotly Figure object ready for st.plotly_chart().
     """
+    if graph_data is None and data is not None:
+        graph_data = data
+    if highlight_node is None and target_id is not None:
+        highlight_node = target_id
+
+    if graph_data is None:
+        raise ValueError("graph_data must be provided to build_embedding_figure.")
+
     embeddings, labels, risk_scores = extract_embeddings(
         model, graph_data, device=device, max_nodes=max_nodes, seed=seed
     )
@@ -258,12 +274,11 @@ def build_embedding_figure(
                 cmax=1.0,
                 opacity=0.75,
                 colorbar=dict(
-                    title="Fraud<br>Probability",
+                    title=dict(text="Fraud<br>Probability", font=dict(color="#CBD5E1")),
                     thickness=14,
                     len=0.75,
                     tickformat=".0%",
                     tickfont=dict(color="#CBD5E1"),
-                    titlefont=dict(color="#CBD5E1"),
                 ),
                 line=dict(width=0),
             ),
