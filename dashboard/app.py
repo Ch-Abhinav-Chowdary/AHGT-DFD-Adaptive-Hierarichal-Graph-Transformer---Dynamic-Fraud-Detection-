@@ -46,6 +46,10 @@ from src.visualize.network_3d import (
     render_graph_3d,
 )
 from src.visualize.embedding_viz import build_embedding_figure
+from src.models.baseline import load_trained_baseline
+from dashboard.predictor_view import render_predictor_view
+from dashboard.batch_view import render_batch_view
+from dashboard.benchmarks_view import render_benchmarks_view
 
 # ---------------------------------------------------------------------------
 # Streamlit Page Config
@@ -154,6 +158,16 @@ def get_model():
         return None, str(exc)
 
 
+@st.cache_resource(show_spinner="Loading GraphSAGE baseline checkpoint …")
+def get_baseline_model():
+    """Loads the trained GraphSAGE baseline neural network."""
+    try:
+        b_model, b_meta = load_trained_baseline(device=torch.device("cpu"))
+        return b_model, b_meta
+    except Exception as exc:
+        return None, str(exc)
+
+
 @st.cache_resource(show_spinner="Initializing GNNExplainer engine …")
 def get_explainer_engine(_data, _model):
     """Initializes the explainability engine."""
@@ -173,6 +187,7 @@ if data is None:
 
 G = get_nx_graph(data)
 model, model_meta = get_model()
+baseline_model, baseline_meta = get_baseline_model()
 explainer = get_explainer_engine(data, model)
 
 # ---------------------------------------------------------------------------
@@ -194,6 +209,7 @@ if "graph_view_mode" not in st.session_state:
 
 
 # ---------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
 # Sidebar: Navigation & Controls
 # ---------------------------------------------------------------------------
 with st.sidebar:
@@ -201,79 +217,93 @@ with st.sidebar:
     st.caption("Graph Transformer & GNNExplainer for Bitcoin Fraud")
     st.markdown("---")
 
-    st.markdown("### 🔍 **Target Investigation**")
-
-    # Direct wallet ID search input
-    selected_wallet = st.number_input(
-        "Transaction / Wallet ID",
-        min_value=0,
-        max_value=int(data.num_nodes) - 1,
-        value=int(st.session_state["wallet_id"]),
-        step=1,
-        help="Enter any transaction index in the Elliptic graph (0 to 203,768).",
+    nav_mode = st.radio(
+        "Navigation Portal",
+        [
+            "⚡ Live Fraud Predictor",
+            "🔍 Forensic Network Explorer",
+            "📂 Batch Transaction Screener",
+            "📊 Model Arena & Benchmarks",
+        ],
+        index=0,
     )
-    if selected_wallet != st.session_state["wallet_id"]:
-        st.session_state["wallet_id"] = int(selected_wallet)
-        st.rerun()
-
-    # Quick picker buttons
-    st.caption("Quick Samples:")
-    q_col1, q_col2, q_col3 = st.columns(3)
-    with q_col1:
-        if st.button("🔴 Illicit", use_container_width=True, help="Random verified illicit transaction"):
-            illicit_pool = torch.where(data.y == 1)[0].tolist()
-            st.session_state["wallet_id"] = random.choice(illicit_pool)
-            st.rerun()
-    with q_col2:
-        if st.button("🟢 Licit", use_container_width=True, help="Random verified licit transaction"):
-            licit_pool = torch.where(data.y == 0)[0].tolist()
-            st.session_state["wallet_id"] = random.choice(licit_pool)
-            st.rerun()
-    with q_col3:
-        if st.button("⚪ Unknown", use_container_width=True, help="Random unlabelled transaction"):
-            unk_pool = torch.where(data.y == -1)[0].tolist()
-            st.session_state["wallet_id"] = random.choice(unk_pool)
-            st.rerun()
-
     st.markdown("---")
-    st.markdown("### 🕸️ **Network Controls**")
-    hops = st.slider("Ego Hop Radius", 1, 3, int(st.session_state["hops"]))
-    st.session_state["hops"] = hops
 
-    max_nodes = st.slider("Max Display Nodes", 20, 300, 120, 10, help="Cap node count to maintain smooth 60fps graph physics.")
-    physics = st.toggle("Canvas Physics", value=True, help="Enable live force-directed layout.")
-    canvas_height = st.slider("Canvas Height", 450, 850, 600, 50)
+    if nav_mode == "🔍 Forensic Network Explorer":
+        st.markdown("### 🔍 **Target Investigation**")
 
-    st.markdown("---")
-    st.markdown("### 🔬 **Explainability**")
-    show_explanation = st.toggle(
-        "GNNExplainer Overlay",
-        value=st.session_state["show_explanation"],
-        help="Overlay the explanation subgraph in orange and synthesize plain-language reasoning.",
-    )
-    st.session_state["show_explanation"] = show_explanation
-
-    top_k_feat = st.slider("Top Attributed Features", 3, 10, 5)
-
-    st.markdown("---")
-    st.markdown("### 🎨 **Visual Legend**")
-    legend_items = [
-        ("#A855F7", "Investigated Wallet (Focal Target)"),
-        ("#F97316", "GNNExplainer Attribution Evidence"),
-        ("#EF4444", "High Risk / Illicit Transaction"),
-        ("#EAB308", "Medium / Suspicious Risk"),
-        ("#22C55E", "Low Risk / Clean Transaction"),
-        ("#94A3B8", "Unlabelled / Unknown Label"),
-    ]
-    for hex_c, desc in legend_items:
-        st.markdown(
-            f"<div style='margin-bottom:4px;'>"
-            f"<span style='display:inline-block;width:12px;height:12px;border-radius:50%;background:{hex_c};margin-right:8px;vertical-align:middle;'></span>"
-            f"<span style='font-size:0.85rem;color:#CBD5E1;'>{desc}</span></div>",
-            unsafe_allow_html=True,
+        # Direct wallet ID search input
+        selected_wallet = st.number_input(
+            "Transaction / Wallet ID",
+            min_value=0,
+            max_value=int(data.num_nodes) - 1,
+            value=int(st.session_state["wallet_id"]),
+            step=1,
+            help="Enter any transaction index in the Elliptic graph (0 to 203,768).",
         )
+        if selected_wallet != st.session_state["wallet_id"]:
+            st.session_state["wallet_id"] = int(selected_wallet)
+            st.rerun()
 
-    st.markdown("---")
+        # Quick picker buttons
+        st.caption("Quick Samples:")
+        q_col1, q_col2, q_col3 = st.columns(3)
+        with q_col1:
+            if st.button("🔴 Illicit", use_container_width=True, help="Random verified illicit transaction"):
+                illicit_pool = torch.where(data.y == 1)[0].tolist()
+                st.session_state["wallet_id"] = random.choice(illicit_pool)
+                st.rerun()
+        with q_col2:
+            if st.button("🟢 Licit", use_container_width=True, help="Random verified licit transaction"):
+                licit_pool = torch.where(data.y == 0)[0].tolist()
+                st.session_state["wallet_id"] = random.choice(licit_pool)
+                st.rerun()
+        with q_col3:
+            if st.button("⚪ Unknown", use_container_width=True, help="Random unlabelled transaction"):
+                unk_pool = torch.where(data.y == -1)[0].tolist()
+                st.session_state["wallet_id"] = random.choice(unk_pool)
+                st.rerun()
+
+        st.markdown("---")
+        st.markdown("### 🕸️ **Network Controls**")
+        hops = st.slider("Ego Hop Radius", 1, 3, int(st.session_state["hops"]))
+        st.session_state["hops"] = hops
+
+        max_nodes = st.slider("Max Display Nodes", 20, 300, 120, 10, help="Cap node count to maintain smooth 60fps graph physics.")
+        physics = st.toggle("Canvas Physics", value=True, help="Enable live force-directed layout.")
+        canvas_height = st.slider("Canvas Height", 450, 850, 600, 50)
+
+        st.markdown("---")
+        st.markdown("### 🔬 **Explainability**")
+        show_explanation = st.toggle(
+            "GNNExplainer Overlay",
+            value=st.session_state["show_explanation"],
+            help="Overlay the explanation subgraph in orange and synthesize plain-language reasoning.",
+        )
+        st.session_state["show_explanation"] = show_explanation
+
+        top_k_feat = st.slider("Top Attributed Features", 3, 10, 5)
+
+        st.markdown("---")
+        st.markdown("### 🎨 **Visual Legend**")
+        legend_items = [
+            ("#A855F7", "Investigated Wallet (Focal Target)"),
+            ("#F97316", "GNNExplainer Attribution Evidence"),
+            ("#EF4444", "High Risk / Illicit Transaction"),
+            ("#EAB308", "Medium / Suspicious Risk"),
+            ("#22C55E", "Low Risk / Clean Transaction"),
+            ("#94A3B8", "Unlabelled / Unknown Label"),
+        ]
+        for hex_c, desc in legend_items:
+            st.markdown(
+                f"<div style='margin-bottom:4px;'>"
+                f"<span style='display:inline-block;width:12px;height:12px;border-radius:50%;background:{hex_c};margin-right:8px;vertical-align:middle;'></span>"
+                f"<span style='font-size:0.85rem;color:#CBD5E1;'>{desc}</span></div>",
+                unsafe_allow_html=True,
+            )
+
+        st.markdown("---")
+
     if isinstance(model_meta, dict):
         st.caption(
             f"**Model:** Graph Transformer (2x TransformerConv)\n\n"
@@ -282,10 +312,21 @@ with st.sidebar:
 
 
 # ---------------------------------------------------------------------------
-# Investigation Target Details
+# Multi-Page Portal Routing
 # ---------------------------------------------------------------------------
-curr_wallet = int(st.session_state["wallet_id"])
-ground_truth_y = int(data.y[curr_wallet].item()) if curr_wallet < len(data.y) else -1
+if nav_mode == "⚡ Live Fraud Predictor":
+    render_predictor_view(data, model, baseline_model, G)
+
+elif nav_mode == "📂 Batch Transaction Screener":
+    render_batch_view(data, model, baseline_model)
+
+elif nav_mode == "📊 Model Arena & Benchmarks":
+    render_benchmarks_view()
+
+elif nav_mode == "🔍 Forensic Network Explorer":
+    # Investigation Target Details
+    curr_wallet = int(st.session_state["wallet_id"])
+    ground_truth_y = int(data.y[curr_wallet].item()) if curr_wallet < len(data.y) else -1
 
 # Fetch ego-network with model risk scores and normalized volume
 node_list, edge_list = get_ego_network_with_scores(
