@@ -231,7 +231,7 @@ def render_explorer_view(
             "Plotly WebGL 3D ego-network. Drag to rotate · Scroll to zoom · Right-click drag to pan. "
             "Orange nodes represent GNNExplainer attribution evidence."
         )
-        pos_3d = layout_graph_3d(node_list, edge_list, iterations=50, seed=42)
+        pos_3d = layout_graph_3d(node_list, edge_list, seed=42)
         fig_3d = render_graph_3d(
             node_list=node_list,
             edge_list=edge_list,

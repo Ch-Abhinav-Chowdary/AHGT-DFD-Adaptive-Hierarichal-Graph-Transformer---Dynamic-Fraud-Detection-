@@ -230,16 +230,20 @@ def render_predictor_view(
             "Select or enter an existing node index from the Elliptic graph to inspect actual recorded attributes and evaluate the model."
         )
 
+        if "direct_lookup_id" not in st.session_state:
+            st.session_state["direct_lookup_id"] = int(st.session_state.get("wallet_id", 907))
+
         b_col1, b_col2 = st.columns([2, 1])
         with b_col1:
             test_wallet_id = st.number_input(
                 "Transaction ID to Predict",
                 min_value=0,
                 max_value=int(data.num_nodes) - 1,
-                value=int(st.session_state.get("wallet_id", 907)),
+                value=int(st.session_state["direct_lookup_id"]),
                 step=1,
-                key="direct_lookup_id",
             )
+            if test_wallet_id != st.session_state["direct_lookup_id"]:
+                st.session_state["direct_lookup_id"] = int(test_wallet_id)
         with b_col2:
             st.caption("Quick Samples from Graph:")
             qs_col1, qs_col2, qs_col3 = st.columns(3)

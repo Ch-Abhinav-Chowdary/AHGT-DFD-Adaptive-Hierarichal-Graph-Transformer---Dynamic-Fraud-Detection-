@@ -38,8 +38,19 @@ from src.models.graph_transformer import load_trained_graph_transformer
 from src.preprocessing.graph_builder import load_graph
 from src.visualize.network_view import build_nx_graph
 
-from dashboard.predictor_view import render_predictor_view
+import importlib
+
+import src.visualize.network_3d
+importlib.reload(src.visualize.network_3d)
+
+import dashboard.explorer_view
+importlib.reload(dashboard.explorer_view)
 from dashboard.explorer_view import render_explorer_view
+
+import dashboard.predictor_view
+importlib.reload(dashboard.predictor_view)
+from dashboard.predictor_view import render_predictor_view
+
 from dashboard.batch_view import render_batch_view
 from dashboard.benchmarks_view import render_benchmarks_view
 
@@ -323,7 +334,7 @@ elif nav_portal == "📂 Batch Transaction Screener":
     render_batch_view(data, model, baseline_model)
 
 elif nav_portal == "📊 Model Arena & Benchmarks":
-    render_benchmarks_view()
+    render_benchmarks_view(model=model, data=data, metadata=model_meta if isinstance(model_meta, dict) else None)
 
 
 # ---------------------------------------------------------------------------
