@@ -68,7 +68,7 @@ def _setup_kaggle_env(creds: str | tuple[str, str]) -> None:
     """Inject Kaggle credentials into the environment so kaggle-cli finds them."""
     if isinstance(creds, str):
         # New single-token format
-        os.environ["KAGGLE_API_TOKEN"] = creds
+        os.environ["KGAT_7682ff32d6a81ad04544d5a85558ca44"] = creds
     else:
         username, key = creds
         os.environ["KAGGLE_USERNAME"] = username
