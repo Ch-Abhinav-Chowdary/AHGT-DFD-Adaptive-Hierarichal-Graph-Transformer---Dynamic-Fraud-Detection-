@@ -76,9 +76,14 @@ def _setup_kaggle_env(creds: str | tuple[str, str]) -> None:
 
 
 def _download_elliptic() -> None:
-    """Download and unzip the Elliptic dataset into data/raw/."""
-    print("📥 Downloading Elliptic dataset from Kaggle …")
+    """Download and unzip the Elliptic dataset into data/raw/.
+
+    Kaggle CLI sometimes extracts into a subfolder (e.g. elliptic-data-set/).
+    This function flattens the result so CSVs end up directly in RAW_DIR.
+    """
+    import shutil
     import subprocess
+    print("📥 Downloading Elliptic dataset from Kaggle …")
     result = subprocess.run(
         [
             sys.executable, "-m", "kaggle", "datasets", "download",
@@ -94,6 +99,26 @@ def _download_elliptic() -> None:
         raise RuntimeError(
             f"Kaggle download failed:\n{result.stderr}\n{result.stdout}"
         )
+
+    # Flatten: if CSVs landed in a subfolder, move them up to RAW_DIR
+    target_files = {
+        "elliptic_txs_features.csv",
+        "elliptic_txs_classes.csv",
+        "elliptic_txs_edgelist.csv",
+    }
+    for csv_name in target_files:
+        if not (RAW_DIR / csv_name).exists():
+            # Search one level deep for the file
+            for candidate in RAW_DIR.rglob(csv_name):
+                print(f"  Moving {candidate} → {RAW_DIR / csv_name}")
+                shutil.move(str(candidate), str(RAW_DIR / csv_name))
+                break
+
+    # Clean up any leftover empty subfolders
+    for item in RAW_DIR.iterdir():
+        if item.is_dir():
+            shutil.rmtree(item, ignore_errors=True)
+
     print("✅ Elliptic dataset downloaded.")
 
 
@@ -122,7 +147,7 @@ def ensure_data_ready(streamlit_ui: bool = True) -> bool:
     creds = _kaggle_credentials_from_streamlit()
     if creds is None:
         # Fallback: try environment variables already set
-        token = os.environ.get("KGAT_529a4f9ebf890efecd8788574cf3efee")
+        token = os.environ.get("KAGGLE_API_TOKEN")
         if token:
             creds = token
         else:
@@ -137,7 +162,7 @@ def ensure_data_ready(streamlit_ui: bool = True) -> bool:
             st.error(
                 "⚠️ **Data not found and Kaggle credentials not configured.**\n\n"
                 "Add your Kaggle API token to the app's Streamlit secrets:\n"
-                "```toml\n[kaggle]\napi_token = \"KGAT_529a4f9ebf890efecd8788574cf3efee\"\n```\n"
+                "```toml\n[kaggle]\napi_token = \"KGAT_your_token_here\"\n```\n"
                 "Then click **Manage app → Reboot app**."
             )
             st.info(
