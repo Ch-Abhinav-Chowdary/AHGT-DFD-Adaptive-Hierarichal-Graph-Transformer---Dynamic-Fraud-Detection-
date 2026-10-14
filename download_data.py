@@ -3,7 +3,13 @@
 Called at dashboard startup on Streamlit Cloud (or any fresh environment).
 Skips all work if data already exists locally.
 
-Requires Streamlit secrets:
+Requires ONE of these in Streamlit secrets:
+
+  Option A – new single-token format (recommended):
+    [kaggle]
+    api_token = "KGAT_529a4f9ebf890efecd8788574cf3efee"
+
+  Option B – legacy username+key format:
     [kaggle]
     username = "your_kaggle_username"
     key      = "your_kaggle_api_key"
@@ -36,21 +42,37 @@ def _ensure_dirs() -> None:
     PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
 
 
-def _kaggle_credentials_from_streamlit() -> tuple[str, str] | None:
-    """Read Kaggle creds from st.secrets if running on Streamlit Cloud."""
+def _kaggle_credentials_from_streamlit() -> str | tuple[str, str] | None:
+    """Read Kaggle creds from st.secrets.
+
+    Returns:
+        str  – new-style single API token  (KGAT_...)
+        tuple – legacy (username, key) pair
+        None  – no credentials found
+    """
     try:
         import streamlit as st
-        username = st.secrets["kaggle"]["username"]
-        key      = st.secrets["kaggle"]["key"]
-        return username, key
+        secrets = st.secrets.get("kaggle", {})
+        # New single-token format
+        if "api_token" in secrets:
+            return secrets["api_token"]
+        # Legacy username+key
+        if "username" in secrets and "key" in secrets:
+            return secrets["username"], secrets["key"]
     except Exception:
-        return None
+        pass
+    return None
 
 
-def _setup_kaggle_env(username: str, key: str) -> None:
+def _setup_kaggle_env(creds: str | tuple[str, str]) -> None:
     """Inject Kaggle credentials into the environment so kaggle-cli finds them."""
-    os.environ["KAGGLE_USERNAME"] = username
-    os.environ["KAGGLE_KEY"]      = key
+    if isinstance(creds, str):
+        # New single-token format
+        os.environ["KAGGLE_API_TOKEN"] = creds
+    else:
+        username, key = creds
+        os.environ["KAGGLE_USERNAME"] = username
+        os.environ["KAGGLE_KEY"]      = key
 
 
 def _download_elliptic() -> None:
@@ -100,24 +122,27 @@ def ensure_data_ready(streamlit_ui: bool = True) -> bool:
     creds = _kaggle_credentials_from_streamlit()
     if creds is None:
         # Fallback: try environment variables already set
-        username = os.environ.get("KAGGLE_USERNAME")
-        key      = os.environ.get("KAGGLE_KEY")
-        if username and key:
-            creds = (username, key)
+        token = os.environ.get("KAGGLE_API_TOKEN")
+        if token:
+            creds = token
+        else:
+            username = os.environ.get("KAGGLE_USERNAME")
+            key      = os.environ.get("KAGGLE_KEY")
+            if username and key:
+                creds = (username, key)
 
     if creds is None:
         if streamlit_ui:
             import streamlit as st
             st.error(
                 "⚠️ **Data not found and Kaggle credentials not configured.**\n\n"
-                "Add your Kaggle API key to the app's Streamlit secrets:\n"
-                "```toml\n[kaggle]\nusername = \"your_username\"\nkey = \"your_api_key\"\n```\n"
+                "Add your Kaggle API token to the app's Streamlit secrets:\n"
+                "```toml\n[kaggle]\napi_token = \"KGAT_xxxxxxxxxxxxxxxxxxxx\"\n```\n"
                 "Then reboot the app."
             )
         return False
 
-    username, key = creds
-    _setup_kaggle_env(username, key)
+    _setup_kaggle_env(creds)
 
     # Install kaggle CLI if not present
     try:
@@ -141,12 +166,18 @@ def ensure_data_ready(streamlit_ui: bool = True) -> bool:
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="Download & preprocess Elliptic dataset")
-    parser.add_argument("--kaggle-username", default=os.environ.get("KAGGLE_USERNAME", ""))
-    parser.add_argument("--kaggle-key",      default=os.environ.get("KAGGLE_KEY", ""))
+    parser.add_argument("--kaggle-token",    default=os.environ.get("KAGGLE_API_TOKEN", ""),
+                        help="New-style single API token (KGAT_...)")
+    parser.add_argument("--kaggle-username", default=os.environ.get("KAGGLE_USERNAME", ""),
+                        help="Legacy: Kaggle username")
+    parser.add_argument("--kaggle-key",      default=os.environ.get("KAGGLE_KEY", ""),
+                        help="Legacy: Kaggle API key")
     args = parser.parse_args()
 
-    if args.kaggle_username and args.kaggle_key:
-        _setup_kaggle_env(args.kaggle_username, args.kaggle_key)
+    if args.kaggle_token:
+        _setup_kaggle_env(args.kaggle_token)
+    elif args.kaggle_username and args.kaggle_key:
+        _setup_kaggle_env((args.kaggle_username, args.kaggle_key))
 
     ok = ensure_data_ready(streamlit_ui=False)
     sys.exit(0 if ok else 1)
