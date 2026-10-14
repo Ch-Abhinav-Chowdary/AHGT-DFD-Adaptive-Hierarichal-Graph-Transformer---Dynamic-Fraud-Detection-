@@ -122,7 +122,7 @@ def ensure_data_ready(streamlit_ui: bool = True) -> bool:
     creds = _kaggle_credentials_from_streamlit()
     if creds is None:
         # Fallback: try environment variables already set
-        token = os.environ.get("KAGGLE_API_TOKEN")
+        token = os.environ.get("KGAT_529a4f9ebf890efecd8788574cf3efee")
         if token:
             creds = token
         else:
@@ -137,7 +137,7 @@ def ensure_data_ready(streamlit_ui: bool = True) -> bool:
             st.error(
                 "⚠️ **Data not found and Kaggle credentials not configured.**\n\n"
                 "Add your Kaggle API token to the app's Streamlit secrets:\n"
-                "```toml\n[kaggle]\napi_token = \"KGAT_xxxxxxxxxxxxxxxxxxxx\"\n```\n"
+                "```toml\n[kaggle]\napi_token = \"KGAT_529a4f9ebf890efecd8788574cf3efee\"\n```\n"
                 "Then click **Manage app → Reboot app**."
             )
             st.info(
