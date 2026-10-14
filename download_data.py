@@ -138,8 +138,13 @@ def ensure_data_ready(streamlit_ui: bool = True) -> bool:
                 "⚠️ **Data not found and Kaggle credentials not configured.**\n\n"
                 "Add your Kaggle API token to the app's Streamlit secrets:\n"
                 "```toml\n[kaggle]\napi_token = \"KGAT_xxxxxxxxxxxxxxxxxxxx\"\n```\n"
-                "Then reboot the app."
+                "Then click **Manage app → Reboot app**."
             )
+            st.info(
+                "💡 Get your token at [kaggle.com/settings](https://www.kaggle.com/settings) "
+                "→ API → Create New Token"
+            )
+            st.stop()  # Halt — don't fall through to load_graph()
         return False
 
     _setup_kaggle_env(creds)
@@ -151,11 +156,19 @@ def ensure_data_ready(streamlit_ui: bool = True) -> bool:
         import subprocess
         subprocess.check_call([sys.executable, "-m", "pip", "install", "kaggle", "-q"])
 
-    if not FEATURES_CSV.exists():
-        _download_elliptic()
-
-    if not GRAPH_CACHE.exists():
-        _build_graph_cache()
+    if streamlit_ui:
+        import streamlit as st
+        if not FEATURES_CSV.exists():
+            with st.spinner("📥 Downloading Elliptic dataset from Kaggle (~658 MB, ~3 min)…"):
+                _download_elliptic()
+        if not GRAPH_CACHE.exists():
+            with st.spinner("⚙️ Building graph cache (~2 min on first run)…"):
+                _build_graph_cache()
+    else:
+        if not FEATURES_CSV.exists():
+            _download_elliptic()
+        if not GRAPH_CACHE.exists():
+            _build_graph_cache()
 
     return True
 
