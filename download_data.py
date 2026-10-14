@@ -127,8 +127,9 @@ def _build_graph_cache() -> None:
     print("⚙️  Building graph cache (this takes ~2 min on first run) …")
     if str(PROJECT_ROOT) not in sys.path:
         sys.path.insert(0, str(PROJECT_ROOT))
-    from src.preprocessing.graph_builder import build_graph
-    build_graph()
+    from src.preprocessing.graph_builder import build_graph, cache_graph
+    graph_data = build_graph()   # construct the PyG Data object
+    cache_graph(graph_data)      # save to data/processed/graph_data.pt
     print("✅ Graph cache created.")
 
 
