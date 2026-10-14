@@ -54,8 +54,8 @@ def _kaggle_credentials_from_streamlit() -> str | tuple[str, str] | None:
         import streamlit as st
         secrets = st.secrets.get("kaggle", {})
         # New single-token format
-        if "KGAT_7682ff32d6a81ad04544d5a85558ca44" in secrets:
-            return secrets["KGAT_7682ff32d6a81ad04544d5a85558ca44"]
+        if "api_token" in secrets:
+            return secrets["api_token"]
         # Legacy username+key
         if "username" in secrets and "key" in secrets:
             return secrets["username"], secrets["key"]
@@ -68,7 +68,7 @@ def _setup_kaggle_env(creds: str | tuple[str, str]) -> None:
     """Inject Kaggle credentials into the environment so kaggle-cli finds them."""
     if isinstance(creds, str):
         # New single-token format
-        os.environ["KGAT_7682ff32d6a81ad04544d5a85558ca44"] = creds
+        os.environ["KAGGLE_API_TOKEN"] = creds
     else:
         username, key = creds
         os.environ["KAGGLE_USERNAME"] = username
