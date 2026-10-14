@@ -7,7 +7,7 @@ Requires ONE of these in Streamlit secrets:
 
   Option A – new single-token format (recommended):
     [kaggle]
-    api_token = "KGAT_your_kaggle_api_token"
+    api_token = "KGAT_7682ff32d6a81ad04544d5a85558ca44"
 
   Option B – legacy username+key format:
     [kaggle]
@@ -55,7 +55,7 @@ def _kaggle_credentials_from_streamlit() -> str | tuple[str, str] | None:
         secrets = st.secrets.get("kaggle", {})
         # New single-token format
         if "api_token" in secrets:
-            return secrets["api_token"]
+            return secrets["KGAT_7682ff32d6a81ad04544d5a85558ca44"]
         # Legacy username+key
         if "username" in secrets and "key" in secrets:
             return secrets["username"], secrets["key"]
@@ -68,7 +68,7 @@ def _setup_kaggle_env(creds: str | tuple[str, str]) -> None:
     """Inject Kaggle credentials into the environment so kaggle-cli finds them."""
     if isinstance(creds, str):
         # New single-token format
-        os.environ["KAGGLE_API_TOKEN"] = creds
+        os.environ["KGAT_7682ff32d6a81ad04544d5a85558ca44"] = creds
     else:
         username, key = creds
         os.environ["KAGGLE_USERNAME"] = username
