@@ -54,7 +54,7 @@ def _kaggle_credentials_from_streamlit() -> str | tuple[str, str] | None:
         import streamlit as st
         secrets = st.secrets.get("kaggle", {})
         # New single-token format
-        if "api_token" in secrets:
+        if "KGAT_7682ff32d6a81ad04544d5a85558ca44" in secrets:
             return secrets["KGAT_7682ff32d6a81ad04544d5a85558ca44"]
         # Legacy username+key
         if "username" in secrets and "key" in secrets:
