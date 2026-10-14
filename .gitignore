@@ -34,12 +34,12 @@ ENV/
 # ──────────────────────────────────────────────
 # PyTorch & ML model checkpoints
 # ──────────────────────────────────────────────
-models/*.pt
-models/*.pth
-models/*.ckpt
-*.pt
 *.pth
 *.ckpt
+models/*.ckpt
+# Pre-trained checkpoints for app inference (<1MB each)
+!models/baseline.pt
+!models/graph_transformer.pt
 
 # ──────────────────────────────────────────────
 # Data files (Elliptic dataset CSVs & cached graph)

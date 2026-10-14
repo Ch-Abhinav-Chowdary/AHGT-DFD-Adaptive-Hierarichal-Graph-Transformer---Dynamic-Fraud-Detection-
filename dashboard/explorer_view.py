@@ -43,6 +43,10 @@ def render_explorer_view(
     curr_wallet = int(st.session_state["wallet_id"])
     ground_truth_y = int(data.y[curr_wallet].item()) if curr_wallet < len(data.y) else -1
 
+    if model is None:
+        st.error("⚠️ Graph Transformer model checkpoint not found or failed to load. Please verify `models/graph_transformer.pt`.")
+        return
+
     # Fetch ego-network with model risk scores and normalized volume
     node_list, edge_list = get_ego_network_with_scores(
         wallet_id=curr_wallet,

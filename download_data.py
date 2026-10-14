@@ -7,7 +7,7 @@ Requires ONE of these in Streamlit secrets:
 
   Option A – new single-token format (recommended):
     [kaggle]
-    api_token = "KGAT_529a4f9ebf890efecd8788574cf3efee"
+    api_token = "KGAT_your_kaggle_api_token"
 
   Option B – legacy username+key format:
     [kaggle]

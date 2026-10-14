@@ -57,6 +57,10 @@ def render_predictor_view(
         unsafe_allow_html=True,
     )
 
+    if model is None:
+        st.error("⚠️ Model checkpoint not found or failed to load. Please verify that `models/graph_transformer.pt` exists.")
+        return
+
     # Top Controls Bar (Threshold & Model Choice)
     ctrl_col1, ctrl_col2, ctrl_col3 = st.columns([1.5, 1.5, 1])
     with ctrl_col1:
